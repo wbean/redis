@@ -158,6 +158,32 @@ void getCommand(redisClient *c) {
     getGenericCommand(c);
 }
 
+int getidGenericCommand(redisClient *c) {
+	//1位的机器码
+	int machine = 1;
+
+	//微妙时间戳
+	long long ut = ustime();
+
+	//4位随机数
+	int seed = ut % 1000000;
+	srand(seed);
+	int rd = rand() % 10000;
+
+	//拼成22位的id
+	char val[25];
+	int len = sprintf(val,"%lld%1d%04d",ut,machine,rd);
+
+	robj* o = createStringObject(val,len);
+	addReplyBulk(c,o);
+	decrRefCount(o);
+	return REDIS_OK;
+}
+
+void getidCommand(redisClient *c){
+	getidGenericCommand(c);
+}
+
 void getsetCommand(redisClient *c) {
     if (getGenericCommand(c) == REDIS_ERR) return;
     c->argv[2] = tryObjectEncoding(c->argv[2]);
