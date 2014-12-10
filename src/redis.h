@@ -196,6 +196,7 @@
 /* Client request types */
 #define REDIS_REQ_INLINE 1
 #define REDIS_REQ_MULTIBULK 2
+#define REDIS_REQ_MEMCACHE 3
 
 /* Client classes for client limits, currently used only for
  * the max-client-output-buffer limit implementation. */

@@ -113,7 +113,7 @@ struct redisCommand *commandTable;
  * M: Do not automatically propagate the command on MONITOR.
  */
 struct redisCommand redisCommandTable[] = {
-    {"get",getCommand,2,"r",0,NULL,1,1,1,0,0},
+    {"get",getCommand,1,"r",0,NULL,0,0,0,0,0},
     {"getid",getidCommand,1,"r",0,NULL,1,1,1,0,0},
     {"set",setCommand,-3,"wm",0,noPreloadGetKeys,1,1,1,0,0},
     {"setnx",setnxCommand,3,"wm",0,noPreloadGetKeys,1,1,1,0,0},
@@ -1735,7 +1735,10 @@ int processCommand(redisClient *c) {
 
     /* Now lookup the command and check ASAP about trivial error conditions
      * such as wrong arity, bad command name and so forth. */
+    printf("c->argv[0]->ptr : %s\n", c->argv[0]->ptr);
     c->cmd = c->lastcmd = lookupCommand(c->argv[0]->ptr);
+    printf("cmd name:%s\n",c->cmd->name);
+
     if (!c->cmd) {
         flagTransaction(c);
         addReplyErrorFormat(c,"unknown command '%s'",

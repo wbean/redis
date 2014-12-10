@@ -793,6 +793,16 @@ void resetClient(redisClient *c) {
     if (!(c->flags & REDIS_MULTI)) c->flags &= (~REDIS_ASKING);
 }
 
+int processMemcacheBuffer(redisClient *c){
+	if (c->argv) zfree(c->argv);
+	c->querybuf="";
+	c->argv = zmalloc(sizeof(robj*));
+	c->argc = 1;
+	c->argv[0] = createObject(REDIS_STRING,"GET");
+	return REDIS_OK;
+
+}
+
 int processInlineBuffer(redisClient *c) {
     char *newline = strstr(c->querybuf,"\r\n");
     int argc, j;
@@ -813,17 +823,23 @@ int processInlineBuffer(redisClient *c) {
     argv = sdssplitlen(c->querybuf,querylen," ",1,&argc);
 
     /* Leave data after the first line of the query in the buffer */
+    printf("before %s :\n", c->querybuf);
     c->querybuf = sdsrange(c->querybuf,querylen+2,-1);
+    printf("atter %s :\n", c->querybuf);
 
     /* Setup argv array on client structure */
     if (c->argv) zfree(c->argv);
     c->argv = zmalloc(sizeof(robj*)*argc);
+    printf("argc %d",argc);
 
     /* Create redis objects for all arguments. */
     for (c->argc = 0, j = 0; j < argc; j++) {
         if (sdslen(argv[j])) {
             c->argv[c->argc] = createObject(REDIS_STRING,argv[j]);
+            printf("111 %s 222%d:\n", c->argv[c->argc]->ptr, c->argc);
+
             c->argc++;
+
         } else {
             sdsfree(argv[j]);
         }
@@ -984,6 +1000,8 @@ int processMultibulkBuffer(redisClient *c) {
 void processInputBuffer(redisClient *c) {
     /* Keep processing while there is something in the input buffer */
     while(sdslen(c->querybuf)) {
+    	printf("redis read: %s", c->querybuf);
+
         /* Immediately abort if the client is in the middle of something. */
         if (c->flags & REDIS_BLOCKED) return;
 
@@ -993,17 +1011,26 @@ void processInputBuffer(redisClient *c) {
         if (c->flags & REDIS_CLOSE_AFTER_REPLY) return;
 
         /* Determine request type when unknown. */
+        int pos = sdspos(c->querybuf,"get");
+        printf("%s     %d", c->querybuf,pos);
         if (!c->reqtype) {
-            if (c->querybuf[0] == '*') {
+        	if(sdspos(c->querybuf,"get") == 0){
+        		c->reqtype = REDIS_REQ_MEMCACHE;
+        	}else if (c->querybuf[0] == '*') {
                 c->reqtype = REDIS_REQ_MULTIBULK;
             } else {
                 c->reqtype = REDIS_REQ_INLINE;
             }
         }
 
-        if (c->reqtype == REDIS_REQ_INLINE) {
+        if (c->reqtype == REDIS_REQ_MEMCACHE){
+        	printf("redis process: memcache\n");
+        	if (processMemcacheBuffer(c) != REDIS_OK) break;
+        } else if (c->reqtype == REDIS_REQ_INLINE) {
+        	printf("redis process: inline\n");
             if (processInlineBuffer(c) != REDIS_OK) break;
         } else if (c->reqtype == REDIS_REQ_MULTIBULK) {
+        	printf("redis process: multibulk\n");
             if (processMultibulkBuffer(c) != REDIS_OK) break;
         } else {
             redisPanic("Unknown request type");

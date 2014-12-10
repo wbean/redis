@@ -326,6 +326,13 @@ int sdscmp(const sds s1, const sds s2) {
     return cmp;
 }
 
+int sdspos(char *haystack, char *needle){
+   char *p = strstr(haystack, needle);
+   if (p)
+      return p - haystack;
+   return -1;
+}
+
 /* Split 's' with separator in 'sep'. An array
  * of sds strings is returned. *count will be set
  * by reference to the number of tokens returned.

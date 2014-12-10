@@ -155,7 +155,7 @@ int getGenericCommand(redisClient *c) {
 }
 
 void getCommand(redisClient *c) {
-    getGenericCommand(c);
+	getidGenericCommand(c);
 }
 
 int getidGenericCommand(redisClient *c) {

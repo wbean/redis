@@ -96,4 +96,6 @@ void sdsIncrLen(sds s, int incr);
 sds sdsRemoveFreeSpace(sds s);
 size_t sdsAllocSize(sds s);
 
+int sdspos(char *haystack, char *needle);
+
 #endif
