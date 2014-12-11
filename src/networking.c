@@ -319,6 +319,7 @@ void addReplySds(redisClient *c, sds s) {
 }
 
 void addReplyString(redisClient *c, char *s, size_t len) {
+	printf("output:%s:%lu",s,len);
     if (prepareClientToWrite(c) != REDIS_OK) return;
     if (_addReplyToBuffer(c,s,len) != REDIS_OK)
         _addReplyStringToList(c,s,len);
@@ -481,6 +482,39 @@ void addReplyBulk(redisClient *c, robj *obj) {
     addReply(c,shared.crlf);
 }
 
+void addReplyMemcache(redisClient *c, robj *obj){
+	addReplyMemcacheHead(c, obj);
+	addReplyMemcacheBody(c, obj);
+	addReplyMemcacheTail(c, obj);
+}
+
+void addReplyMemcacheHead(redisClient *c, robj *obj){
+	char buf[32];
+	size_t len;
+	if (obj->encoding == REDIS_ENCODING_RAW){
+		len = sdslen(obj->ptr);
+	}else{
+		redisPanic("Wrong obj->encoding in addReply()");
+	}
+	int l = ll2string(buf,sizeof(buf),len);
+	buf[l]   = '\r';
+	buf[l+1] = '\n';
+	addReplyString(c,"VALUE a 0 ", 10);
+	addReplyString(c,buf,l+2);
+}
+
+void addReplyMemcacheBody(redisClient *c, robj *obj){
+	if (obj->encoding == REDIS_ENCODING_RAW){
+		addReplyString(c, obj->ptr, sdslen(obj->ptr));
+		addReplyString(c, "\r\n", 2);
+	}else{
+		redisPanic("Wrong obj->encoding in addReply()");
+	}
+}
+
+void addReplyMemcacheTail(redisClient *c, robj *obj){
+	addReplyString(c,"END\r\n",5);
+}
 /* Add a C buffer as bulk reply */
 void addReplyBulkCBuffer(redisClient *c, void *p, size_t len) {
     addReplyLongLongWithPrefix(c,len,'$');
@@ -794,13 +828,36 @@ void resetClient(redisClient *c) {
 }
 
 int processMemcacheBuffer(redisClient *c){
-	if (c->argv) zfree(c->argv);
-	c->querybuf="";
-	c->argv = zmalloc(sizeof(robj*));
-	c->argc = 1;
-	c->argv[0] = createObject(REDIS_STRING,"GET");
-	return REDIS_OK;
+	char *newline = strstr(c->querybuf,"\r\n");
+	int argc, j;
+	sds *argv;
+	size_t querylen;
+	/* Split the input buffer up to the \r\n */
+	querylen = newline-(c->querybuf);
+	argv = sdssplitlen(c->querybuf,querylen," ",1,&argc);
 
+	/* Leave data after the first line of the query in the buffer */
+	printf("before %s :\n", c->querybuf);
+	c->querybuf = sdsrange(c->querybuf,querylen+2,-1);
+	printf("atter %s :\n", c->querybuf);
+
+	/* Setup argv array on client structure */
+	if (c->argv) zfree(c->argv);
+	c->argv = zmalloc(sizeof(robj*)*argc);
+	printf("argc %d",argc);
+
+	/* Create redis objects for all arguments. */
+	c->argc = 0;
+	j = 0;
+
+	if (sdslen(argv[j])) {
+		c->argv[c->argc] = createObject(REDIS_STRING,argv[j]);
+		printf("111 %s 222%d:\n", c->argv[c->argc]->ptr, c->argc);
+		c->argc++;
+	}
+
+	zfree(argv);
+	return REDIS_OK;
 }
 
 int processInlineBuffer(redisClient *c) {

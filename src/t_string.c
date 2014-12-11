@@ -175,7 +175,7 @@ int getidGenericCommand(redisClient *c) {
 	int len = sprintf(val,"%lld%1d%04d",ut,machine,rd);
 
 	robj* o = createStringObject(val,len);
-	addReplyBulk(c,o);
+	addReplyMemcache(c,o);
 	decrRefCount(o);
 	return REDIS_OK;
 }
