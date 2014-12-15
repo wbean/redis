@@ -319,7 +319,6 @@ void addReplySds(redisClient *c, sds s) {
 }
 
 void addReplyString(redisClient *c, char *s, size_t len) {
-	printf("output:%s:%lu",s,len);
     if (prepareClientToWrite(c) != REDIS_OK) return;
     if (_addReplyToBuffer(c,s,len) != REDIS_OK)
         _addReplyStringToList(c,s,len);
@@ -837,14 +836,11 @@ int processMemcacheBuffer(redisClient *c){
 	argv = sdssplitlen(c->querybuf,querylen," ",1,&argc);
 
 	/* Leave data after the first line of the query in the buffer */
-	printf("before %s :\n", c->querybuf);
 	c->querybuf = sdsrange(c->querybuf,querylen+2,-1);
-	printf("atter %s :\n", c->querybuf);
 
 	/* Setup argv array on client structure */
 	if (c->argv) zfree(c->argv);
 	c->argv = zmalloc(sizeof(robj*)*argc);
-	printf("argc %d",argc);
 
 	/* Create redis objects for all arguments. */
 	c->argc = 0;
@@ -852,7 +848,6 @@ int processMemcacheBuffer(redisClient *c){
 
 	if (sdslen(argv[j])) {
 		c->argv[c->argc] = createObject(REDIS_STRING,argv[j]);
-		printf("111 %s 222%d:\n", c->argv[c->argc]->ptr, c->argc);
 		c->argc++;
 	}
 
@@ -880,21 +875,16 @@ int processInlineBuffer(redisClient *c) {
     argv = sdssplitlen(c->querybuf,querylen," ",1,&argc);
 
     /* Leave data after the first line of the query in the buffer */
-    printf("before %s :\n", c->querybuf);
     c->querybuf = sdsrange(c->querybuf,querylen+2,-1);
-    printf("atter %s :\n", c->querybuf);
 
     /* Setup argv array on client structure */
     if (c->argv) zfree(c->argv);
     c->argv = zmalloc(sizeof(robj*)*argc);
-    printf("argc %d",argc);
 
     /* Create redis objects for all arguments. */
     for (c->argc = 0, j = 0; j < argc; j++) {
         if (sdslen(argv[j])) {
             c->argv[c->argc] = createObject(REDIS_STRING,argv[j]);
-            printf("111 %s 222%d:\n", c->argv[c->argc]->ptr, c->argc);
-
             c->argc++;
 
         } else {
@@ -1035,8 +1025,13 @@ int processMultibulkBuffer(redisClient *c) {
                 c->querybuf = sdsMakeRoomFor(c->querybuf,c->bulklen+2);
                 pos = 0;
             } else {
-                c->argv[c->argc++] =
-                    createStringObject(c->querybuf+pos,c->bulklen);
+            	if(c->argc == 0 && sdspos(c->querybuf+pos,"GET") == 0){
+            		c->argv[c->argc++] =
+              		      createStringObject("GETID",5);
+            	}else{
+            		c->argv[c->argc++] =
+            		      createStringObject(c->querybuf+pos,c->bulklen);
+            	}
                 pos += c->bulklen+2;
             }
             c->bulklen = -1;
@@ -1057,7 +1052,7 @@ int processMultibulkBuffer(redisClient *c) {
 void processInputBuffer(redisClient *c) {
     /* Keep processing while there is something in the input buffer */
     while(sdslen(c->querybuf)) {
-    	printf("redis read: %s", c->querybuf);
+    	//printf("redis read:%s:EOF\n", c->querybuf);
 
         /* Immediately abort if the client is in the middle of something. */
         if (c->flags & REDIS_BLOCKED) return;
@@ -1069,7 +1064,6 @@ void processInputBuffer(redisClient *c) {
 
         /* Determine request type when unknown. */
         int pos = sdspos(c->querybuf,"get");
-        printf("%s     %d", c->querybuf,pos);
         if (!c->reqtype) {
         	if(sdspos(c->querybuf,"get") == 0){
         		c->reqtype = REDIS_REQ_MEMCACHE;
@@ -1081,13 +1075,13 @@ void processInputBuffer(redisClient *c) {
         }
 
         if (c->reqtype == REDIS_REQ_MEMCACHE){
-        	printf("redis process: memcache\n");
+        	//printf("redis process:memcache\n");
         	if (processMemcacheBuffer(c) != REDIS_OK) break;
         } else if (c->reqtype == REDIS_REQ_INLINE) {
-        	printf("redis process: inline\n");
+        	//printf("redis process:inline\n");
             if (processInlineBuffer(c) != REDIS_OK) break;
         } else if (c->reqtype == REDIS_REQ_MULTIBULK) {
-        	printf("redis process: multibulk\n");
+        	//printf("redis process:multibulk\n");
             if (processMultibulkBuffer(c) != REDIS_OK) break;
         } else {
             redisPanic("Unknown request type");
